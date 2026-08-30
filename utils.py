@@ -1,0 +1,16 @@
+import pygame
+
+def get_image(sheet, frame_index, frame_width=24, frame_height=24):
+    x = frame_index * frame_width
+    y = 0
+    return sheet.subsurface(pygame.Rect(x, y, frame_width, frame_height))
+
+def get_animation(sheet, start_frame, count=4):
+    frames = []
+    for i in range(count):
+        frames.append(get_image(sheet=sheet, frame_index=start_frame+i))
+        
+    return frames
+
+def flip_animation(frames):
+    return [pygame.transform.flip(frame, True, False) for frame in frames]

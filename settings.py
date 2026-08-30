@@ -1,0 +1,17 @@
+# Screen and resolution
+INTERNAL_WIDTH = 256
+INTERNAL_HEIGHT = 192
+
+SCALE = 4
+WINDOW_WIDTH = INTERNAL_WIDTH * SCALE
+WINDOW_HEIGHT = INTERNAL_HEIGHT * SCALE
+
+FPS = 60
+
+# Raster
+TILE_SIZE = 16
+
+# Colors
+COLORS = {
+    "background": (48, 48, 48)
+}
