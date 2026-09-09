@@ -1,1 +1,2 @@
-- Character sprite templates: ErisEsra -> https://erisesra.itch.io/character-templates-pack
+- Character sprite templates (modified): ErisEsra -> https://erisesra.itch.io/character-templates-pack
+- Tileset and interior: Stephen Challener (Redshrike) -> https://opengameart.org/content/16x16-indoor-rpg-tileset-the-baseline

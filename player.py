@@ -1,8 +1,12 @@
 import pygame
+import settings
 from utils import get_image, get_animation, flip_animation
 
-class Player:
+class Player(pygame.sprite.Sprite):
     def __init__(self, pos: tuple = (0, 0)):
+        super().__init__()
+        
+        self._layer = settings.LAYERS["player"]
         self.speed = 2
         self.state = "idle"
         self.direction = "down"
@@ -58,6 +62,8 @@ class Player:
         if self.frame_index >= len(frames):
             self.frame_index = 0
         self.image = frames[int(self.frame_index)]
+        
+        print(self.rect.x, self.rect.y)
         
     def draw(self, screen):
         screen.blit(self.image, self.rect)
