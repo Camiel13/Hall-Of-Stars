@@ -95,8 +95,10 @@ class Player(pygame.sprite.Sprite):
     def set_pos(self, pos: tuple):
         pixel_x = tile_to_pixel(pos[0])
         pixel_y = tile_to_pixel(pos[1])
-        self.rect.topleft = (pixel_x, pixel_y)
+        self.rect.topleft = (pixel_x - 4, pixel_y) # apply offset for the player being 24x24 and the tiles 16x16 
         self.hitbox.midbottom = self.rect.midbottom
+        if len(pos) > 2:
+            self.direction = pos[2]
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)

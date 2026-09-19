@@ -6,7 +6,7 @@ from camera import CameraGroup
 from utils import get_tile, tile_to_pixel
 
 class Room:
-    def __init__(self, rect: pygame.Rect, textures: dict, wall_locations: dict, spawn_point: tuple):
+    def __init__(self, rect: pygame.Rect, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None, project_data: dict = {}):
         self.rect = rect
         self.textures = textures
         
@@ -20,6 +20,8 @@ class Room:
         self.generate_floor()
         self.generate_side_walls()
         self.generate_front_walls()
+        if has_exit:
+            self.generate_exit_door()
         
     def generate_floor(self):
         for x in range(self.rect.left, self.rect.right):
@@ -85,11 +87,24 @@ class Room:
                 
     def tick_doors(self, player: pygame.Rect) -> object:
         for door in self.doors:
-            if player.direction == "up" and player.hitbox.colliderect(door.hitbox):
+            if (player.direction == "up" or player.direction == "down") and player.hitbox.colliderect(door.hitbox):
                 return door
             
         return None
                 
+    def generate_exit_door(self):
+        pixel_x = tile_to_pixel(self.rect.centerx)
+        pixel_y = tile_to_pixel(self.rect.bottom)            
+                    
+        self.exit_door = Door(
+            pos=(pixel_x, pixel_y),
+            surface=self.textures["door"],
+            layer=settings.LAYERS["front_wall"],
+            hitbox=pygame.Rect(pixel_x, pixel_y + 9, 16, 7)
+        )
+        self.tiles.add(self.exit_door)
+        self.doors.add(self.exit_door)
+    
     def load(self, camera: object, obstacles: object):
         camera.add(self.tiles)
         obstacles.add(self.obstacles)
@@ -97,6 +112,12 @@ class Room:
     def unload(self, camera: object, obstacles: object):
         camera.remove(self.tiles)
         obstacles.remove(self.obstacles)
+
+class ProjectRoom(Room):
+    def __init__(self, rect: pygame.Rect, project_data: dict, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None):
+        super().__init__(rect=rect, textures=textures, wall_locations=wall_locations, spawn_point=spawn_point, has_exit=has_exit)
+        self.data = project_data
+        print(self.data)
         
 class Hallway(Room):
     def __init__(self, textures: dict, api: object, height):
@@ -119,7 +140,7 @@ class Hallway(Room):
                 "top": True,
                 "bottom": True
             },
-            spawn_point=(self.hallway_width // 2, 4)
+            spawn_point=((self.hallway_width - 1) / 2, 3, "up")
         )
         self.generate_doors()
         self.generate_carpet()
@@ -130,15 +151,36 @@ class Hallway(Room):
         return doors + ((doors - 1) * self.door_spacing) + (2 * self.door_margin) if doors > 0 else 5
     
     def generate_doors(self):
-        doors = len(self.projects)
-        
-        for door_index in range(doors):
+        for door_index, project in enumerate(self.projects):
             x_tile = self.door_margin + (door_index * (1 + self.door_spacing))
             pixel_x = tile_to_pixel(x_tile)
             
-            door_tile = Door(pos=(pixel_x, 0), surface=self.textures["door"], project_data={}, layer=settings.LAYERS["door"])
-            self.tiles.add(door_tile)
-            self.doors.add(door_tile)
+            project_room = ProjectRoom(
+                rect=pygame.Rect(0, 0, 11, 11),
+                project_data=project,
+                textures=self.textures,
+                wall_locations={
+                    "left": True,
+                    "right": True,
+                    "top": True,
+                    "bottom": True
+                },
+                spawn_point=(5, 10, "up"),
+                has_exit=True
+            )
+            
+            hallway_door = Door(
+                pos=(pixel_x, 0),
+                surface=self.textures["door"],
+                target_room=project_room,
+                target_pos=project_room.spawn_point,
+                layer=settings.LAYERS["door"],
+            )
+            self.tiles.add(hallway_door)
+            self.doors.add(hallway_door)
+            
+            project_room.exit_door.target_room = self
+            project_room.exit_door.target_pos = (x_tile, 0, "down")
             
     def generate_carpet(self):
         carpet = pygame.Rect(
@@ -175,10 +217,11 @@ class Tile(pygame.sprite.Sprite):
         self._layer = layer
 
 class Door(Tile):
-    def __init__(self, pos, surface, project_data, layer=settings.LAYERS["door"]):
-        super().__init__(pos=pos, surface=surface, layer=layer, hitbox=pygame.Rect(pos[0], pos[1], 16, 18))
-        self.project_data = project_data
-        self.target_room = None # Will get filled upon entering the door once
+    def __init__(self, pos, surface, target_room=None, target_pos=None, layer=settings.LAYERS["door"], hitbox=None):
+        hitbox = hitbox if hitbox is not None else pygame.Rect(pos[0], pos[1], 16, 18)
+        super().__init__(pos=pos, surface=surface, layer=layer, hitbox=hitbox)
+        self.target_room = target_room
+        self.target_pos = target_pos
         
 class Level:
     def __init__(self, display_surface):
@@ -225,36 +268,17 @@ class Level:
         target_room.load(camera=self.camera_group, obstacles=self.obstacles)
         
     def tick(self):
-        # Tick the player
         self.player.tick()
+        self.tick_doors()
         
-        # Check if doors are opened
-        door = self.current_room.tick_doors(player=self.player)
-        if door:
-            self.handle_door(door=door)
-        
-    def handle_door(self, door: object):
-        if hasattr(door, "project_data"):
-            if getattr(door, "target_room", None) is not None:
+    def tick_doors(self):
+        if self.player.direction not in ("up", "down"):
+            return
+
+        for door in self.current_room.doors:
+            if self.player.hitbox.colliderect(door.hitbox):
                 self.switch_room(target_room=door.target_room)
-            else:
-                new_room = Room(
-                    rect=pygame.Rect(0, 0, 15, 15),
-                    textures=self.textures,
-                    wall_locations={
-                        "left": True,
-                        "right": True,
-                        "top": True,
-                        "bottom": True
-                    },
-                    spawn_point=(5, 5)
-                )
-                self.switch_room(target_room=new_room)
-                door.target_room = new_room
-        else:   
-            self.switch_room(target_room=self.hallway)
-        
-        self.player.set_pos((self.current_room.spawn_point))
-        
+                self.player.set_pos((door.target_pos))
+    
     def draw(self):
         self.camera_group.draw_sprites(target=self.player)
