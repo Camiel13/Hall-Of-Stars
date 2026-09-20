@@ -117,7 +117,6 @@ class ProjectRoom(Room):
     def __init__(self, rect: pygame.Rect, project_data: dict, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None):
         super().__init__(rect=rect, textures=textures, wall_locations=wall_locations, spawn_point=spawn_point, has_exit=has_exit)
         self.data = project_data
-        print(self.data)
         
 class Hallway(Room):
     def __init__(self, textures: dict, api: object, height):
@@ -251,7 +250,10 @@ class Level:
                 "bottom-right": get_tile(tile_x=5, tile_y=1, tilesheet=self.tilesheet),
             }
         }
-
+        
+        self.generate_hallway()
+        
+    def generate_hallway(self):
         # Set the heights and generate the hallway
         self.hallway = Hallway(
             textures=self.textures,

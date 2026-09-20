@@ -2,6 +2,7 @@ import sys
 import pygame
 import settings
 from level import Level
+from ui import WelcomeScreen, Dialogue
 
 class Game:
     def __init__(self):
@@ -20,6 +21,10 @@ class Game:
         
         # Create the world
         self.level = Level(display_surface=self.display_surface)
+        self.state = "PLAYING" if self.level.api.stardance_username else "WELCOMING"
+        self.welcome_screen = None
+        if self.state == "WELCOMING":
+            self.welcome_screen = WelcomeScreen()
         
     def run(self):
         while self.running:
@@ -27,9 +32,19 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-
+                
+                if self.state == "WELCOMING":
+                    self.welcome_screen.handle_event(event)
+                    if self.welcome_screen.is_finished:
+                        self.state = "PLAYING"                        
+                        self.level.api.set_username(self.welcome_screen.username)
+                        self.level.hallway.unload(camera=self.level.camera_group, obstacles=self.level.obstacles)
+                        self.level.generate_hallway()
+                        self.welcome_screen = None
+                        
             # Tick Logic
-            self.level.tick()
+            if self.state == "PLAYING":
+                self.level.tick()
         
             # Rendering
             self.display_surface.fill(settings.COLORS["background"])
@@ -40,6 +55,9 @@ class Game:
                 (settings.WINDOW_WIDTH, settings.WINDOW_HEIGHT)
             )
             self.screen.blit(scaled_surface, (0, 0))
+            
+            if self.state == "WELCOMING":
+                self.welcome_screen.draw(self.screen)
             
             pygame.display.flip()
             self.clock.tick(settings.FPS)
