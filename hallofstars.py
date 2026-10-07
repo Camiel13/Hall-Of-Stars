@@ -2,7 +2,7 @@ import sys
 import pygame
 import settings
 from level import Level
-from ui import UISequence, create_welcome_sequence
+from ui import UISequence, create_welcome_sequence, UIManager
 
 class Game:
     def __init__(self):
@@ -20,9 +20,10 @@ class Game:
         self.running = True
         
         # Create the world
-        self.level = Level(display_surface=self.display_surface)
-        self.state = "PLAYING" if self.level.api.stardance_username else "WELCOMING"
-        self.welcome_sequence = create_welcome_sequence()
+        self.ui_manager = UIManager()
+        self.level = Level(display_surface=self.display_surface, ui_manager=self.ui_manager)
+        if not self.level.api.stardance_username:
+            self.ui_manager.set_ui(create_welcome_sequence(), self.on_welcome_finish)
         
     def run(self):
         while self.running:
@@ -31,22 +32,13 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
                 
-                if self.state == "WELCOMING":
-                    self.welcome_sequence.handle_event(event)
-                    if self.welcome_sequence.is_finished:
-                        self.state = "PLAYING"                        
-                        self.level.api.set_username(self.welcome_sequence.results["username"])
-                        self.level.hallway.unload(camera=self.level.camera_group, obstacles=self.level.obstacles)
-                        self.level.generate_hallway()
-                        self.welcome_sequence = None
-                else:
-                    self.welcome_sequence = None
+                # Pass the event to the UI manager
+                self.ui_manager.handle_event(event)
                         
             # Tick Logic
-            if self.state == "PLAYING":
+            if not self.ui_manager.active_ui:
                 self.level.tick()
-            elif self.state == "WELCOMING":
-                self.welcome_sequence.update()
+            
         
             # Rendering
             self.display_surface.fill(settings.COLORS["background"])
@@ -58,11 +50,17 @@ class Game:
             )
             self.screen.blit(scaled_surface, (0, 0))
             
-            if self.state == "WELCOMING":
-                self.welcome_sequence.draw(self.screen)
+            if self.ui_manager.active_ui or self.ui_manager.overlay:
+                self.ui_manager.update()
+                self.ui_manager.draw(self.screen)
             
             pygame.display.flip()
             self.clock.tick(settings.FPS)
         
         pygame.quit()
         sys.exit()
+        
+    def on_welcome_finish(self, ui_sequence):
+        self.level.api.set_username(ui_sequence.results["username"])
+        self.level.hallway.unload(camera=self.level.camera_group, obstacles=self.level.obstacles)
+        self.level.generate_hallway()
