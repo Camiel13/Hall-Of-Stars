@@ -27,5 +27,6 @@ LAYERS = {
     "door": 3,
     "decoration": 4,
     "player": 5,
-    "front_wall": 6
+    "front_decoration": 6,
+    "front_wall": 7
 }

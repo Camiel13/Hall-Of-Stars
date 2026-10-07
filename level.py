@@ -1,9 +1,11 @@
+import math
 import pygame
 import settings
 from api import API
 from player import Player
 from camera import CameraGroup
 from utils import get_tile, tile_to_pixel
+from ui import KeybindOverlay, create_project_sequence
 
 class Room:
     def __init__(self, rect: pygame.Rect, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None, project_data: dict = {}):
@@ -12,9 +14,13 @@ class Room:
         
         self.wall_locations = wall_locations
         self.spawn_point = spawn_point
+        
+        # Groups
         self.tiles = pygame.sprite.Group()
         self.doors = pygame.sprite.Group()
+        self.ticking_tiles = pygame.sprite.Group()
         self.obstacles = pygame.sprite.Group()
+        self.interactables = []
         
         # Generate the room
         self.generate_floor()
@@ -85,13 +91,6 @@ class Room:
                 self.tiles.add(bottom_tile)
                 self.obstacles.add(bottom_tile)           
                 
-    def tick_doors(self, player: pygame.Rect) -> object:
-        for door in self.doors:
-            if (player.direction == "up" or player.direction == "down") and player.hitbox.colliderect(door.hitbox):
-                return door
-            
-        return None
-                
     def generate_exit_door(self):
         pixel_x = tile_to_pixel(self.rect.centerx)
         pixel_y = tile_to_pixel(self.rect.bottom)            
@@ -104,6 +103,26 @@ class Room:
         )
         self.tiles.add(self.exit_door)
         self.doors.add(self.exit_door)
+        
+    def tick_doors(self, player: pygame.Rect) -> object:
+        for door in self.doors:
+            if (player.direction == "up" or player.direction == "down") and player.hitbox.colliderect(door.hitbox):
+                return door
+            
+        return None
+    
+    def tick_ticking_tiles(self):
+        for tile in self.ticking_tiles:
+            tile.tick()
+            
+    def tick_interactables(self, player):
+        for interactable in self.interactables:
+            interactable.tick(player=player)
+            
+    def tick(self, player: pygame.Rect):
+        self.tick_doors(player=player)
+        self.tick_ticking_tiles()
+        self.tick_interactables(player=player)
     
     def load(self, camera: object, obstacles: object):
         camera.add(self.tiles)
@@ -117,7 +136,51 @@ class ProjectRoom(Room):
     def __init__(self, rect: pygame.Rect, project_data: dict, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None):
         super().__init__(rect=rect, textures=textures, wall_locations=wall_locations, spawn_point=spawn_point, has_exit=has_exit)
         self.data = project_data
+        self.generate_altar()
         
+    def generate_altar(self):
+        pixel_x = tile_to_pixel(self.rect.centerx)
+        pixel_y = tile_to_pixel(self.rect.centery)
+        
+        # Generate the altar
+        bottom_altar = Tile(
+            pos=(pixel_x, pixel_y),
+            surface=self.textures["altar"]["bottom"],
+            layer=settings.LAYERS["decoration"]
+        )
+        self.tiles.add(bottom_altar)
+        self.obstacles.add(bottom_altar)
+        
+        top_altar = Tile(
+            pos=(pixel_x, pixel_y - tile_to_pixel(1)),
+            surface=self.textures["altar"]["top"],
+            hitbox=pygame.Rect(pixel_x, pixel_y + 10, 16, 6),
+            layer=settings.LAYERS["front_decoration"]
+        )
+        self.tiles.add(top_altar)
+        self.obstacles.add(top_altar)
+        
+        # Generate the floating book
+        self.book = FloatingTile(
+            pos=(pixel_x, pixel_y - 25),
+            surface=self.textures["book"]["closed"],
+            layer=settings.LAYERS["front_decoration"],
+        )
+        self.tiles.add(self.book)
+        self.ticking_tiles.add(self.book)
+        
+        # Add the interaction zone to the book
+        altar_trigger = InteractionTrigger(
+            target=self.book,
+            zone=bottom_altar.rect.inflate(28, 28),
+            keybind=pygame.K_e,
+            keybind_text="E",
+            text="Project Info",
+            on_trigger=lambda: create_project_sequence(self.data),
+            textures={"active": self.textures["book"]["open"], "inactive": self.textures["book"]["closed"]}
+        )
+        self.interactables.append(altar_trigger)
+                        
 class Hallway(Room):
     def __init__(self, textures: dict, api: object, height):
         self.textures = textures
@@ -139,7 +202,7 @@ class Hallway(Room):
                 "top": True,
                 "bottom": True
             },
-            spawn_point=((self.hallway_width - 1) / 2, 3, "up")
+            spawn_point=((self.hallway_width - 1) / 2, 3, "up"),
         )
         self.generate_doors()
         self.generate_carpet()
@@ -165,7 +228,7 @@ class Hallway(Room):
                     "bottom": True
                 },
                 spawn_point=(5, 10, "up"),
-                has_exit=True
+                has_exit=True,
             )
             
             hallway_door = Door(
@@ -203,7 +266,7 @@ class Hallway(Room):
                 carpet_tile = Tile(
                     pos=(tile_to_pixel(x), tile_to_pixel(y)),
                     surface=self.textures["carpet"][f"{vert}-{horiz}"],
-                    layer=settings.LAYERS["decoration"]
+                    layer=settings.LAYERS["floor"]
                 )
                 self.tiles.add(carpet_tile)
 
@@ -222,9 +285,38 @@ class Door(Tile):
         self.target_room = target_room
         self.target_pos = target_pos
         
+class FloatingTile(Tile):
+    def __init__(self, pos, surface, layer=settings.LAYERS["door"], hitbox=None, amplitude=2, animation_speed=0.006):
+        super().__init__(pos=pos, surface=surface, layer=layer, hitbox=hitbox)
+        self.base_y = pos[1]
+        self.amplitude = amplitude
+        self.speed = animation_speed
+        
+    def tick(self):
+        offset = math.sin(pygame.time.get_ticks() * self.speed) * self.amplitude
+        self.rect.y = int(self.base_y + offset)
+        
+class InteractionTrigger:
+    def __init__(self, target, zone, keybind, keybind_text, text, textures: dict, on_trigger, layer=settings.LAYERS["decoration"]):
+        self.zone = zone
+        self.target = target
+        self.keybind = keybind
+        self.keybind_text = keybind_text
+        self.text = text
+        self.on_trigger = on_trigger
+        self.textures = textures or {}
+        self.active = False
+
+    def tick(self, player: pygame.Rect):
+        self.active = player.hitbox.colliderect(self.zone)
+        if self.textures:
+            self.target.image = self.textures["active" if self.active else "inactive"]
+
+        
 class Level:
-    def __init__(self, display_surface):
+    def __init__(self, display_surface, ui_manager):
         self.display_surface = display_surface
+        self.ui_manager = ui_manager
         self.api = API()
         self.obstacles = pygame.sprite.Group()
         self.camera_group = CameraGroup(display_surface=self.display_surface)
@@ -236,6 +328,7 @@ class Level:
         
         # Get all the tiles for the rooms
         self.tilesheet = pygame.image.load("assets/level/tileset.png").convert_alpha()
+        self.expanded_tilesheet = pygame.image.load("assets/level/tileset_expansion.png").convert_alpha()
         self.textures = {
             "floor": get_tile(tile_x=6, tile_y=0, tilesheet=self.tilesheet),
             "side_wall": get_tile(tile_x=2, tile_y=5, tilesheet=self.tilesheet),
@@ -248,6 +341,15 @@ class Level:
                 "bottom-middle": get_tile(tile_x=4, tile_y=1, tilesheet=self.tilesheet),
                 "top-right": get_tile(tile_x=5, tile_y=0, tilesheet=self.tilesheet),
                 "bottom-right": get_tile(tile_x=5, tile_y=1, tilesheet=self.tilesheet),
+            },
+            "altar": {
+                "top": get_tile(tile_x=4, tile_y=6, tilesheet=self.expanded_tilesheet),
+                "bottom": get_tile(tile_x=4, tile_y=8, tilesheet=self.expanded_tilesheet)
+            },
+            "book": {
+                "open": get_tile(tile_x=3, tile_y=8, tilesheet=self.expanded_tilesheet),
+                "upside": get_tile(tile_x=1, tile_y=8, tilesheet=self.expanded_tilesheet),
+                "closed": get_tile(tile_x=3, tile_y=11, tilesheet=self.expanded_tilesheet)
             }
         }
         
@@ -258,7 +360,7 @@ class Level:
         self.hallway = Hallway(
             textures=self.textures,
             api=self.api,
-            height=5
+            height=5,
         )
         self.current_room = self.hallway
         self.hallway.load(camera=self.camera_group, obstacles=self.obstacles)
@@ -272,6 +374,8 @@ class Level:
     def tick(self):
         self.player.tick()
         self.tick_doors()
+        self.current_room.tick(player=self.player)
+        self.handle_interactions()    
         
     def tick_doors(self):
         if self.player.direction not in ("up", "down"):
@@ -281,6 +385,31 @@ class Level:
             if self.player.hitbox.colliderect(door.hitbox):
                 self.switch_room(target_room=door.target_room)
                 self.player.set_pos((door.target_pos))
+                
+    def handle_interactions(self):
+        active_interactable = None
+        for interactable in self.current_room.interactables:
+                if interactable.active:
+                    active_interactable = interactable
+                    break
+
+        if active_interactable:
+            self.ui_manager.set_overlay(
+                KeybindOverlay(
+                    key=active_interactable.keybind,
+                    key_text=active_interactable.keybind_text,
+                    text=active_interactable.text,
+                    on_trigger=lambda: self.trigger_interaction(active_interactable)
+                )
+            )
+        else:
+            self.ui_manager.clear_overlay()
+    
+    def trigger_interaction(self, interactable):
+        if interactable.on_trigger:
+            ui = interactable.on_trigger()
+            self.ui_manager.set_ui(new_ui=ui)
+
     
     def draw(self):
         self.camera_group.draw_sprites(target=self.player)

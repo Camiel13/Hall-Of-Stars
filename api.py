@@ -21,15 +21,25 @@ class API:
                 {"name": "Demo project"}
             ]
         
-        response = requests.get(
-            url=f"{self.url}/users/{self.stardance_username}/projects"
-        )
+        try:
+            response = requests.get(
+                url=f"{self.url}/users/{self.stardance_username}/projects"
+            )
+            
+            if response.status_code == 200:
+                return response.json().get("items", [])
+            else:
+                print(f"Something went wrong while fetching your profile. Code {response.status_code}: {response.text}")
+                sys.exit()
+        except Exception as e:
+            print(f"Could not reach API: {e}")
+            return [
+                {"name": "Offline project"},
+                {"name": "Offline project"},
+                {"name": "Offline project"},
+                {"name": "Offline project"},
+            ]
         
-        if response.status_code == 200:
-            return response.json().get("items", [])
-        else:
-            print(f"Something went wrong while fetching your profile. Code {response.status_code}: {response.text}")
-            sys.exit()
             
     def set_username(self, username: str):
         self.stardance_username = username

@@ -53,6 +53,31 @@ class UIElement(ABC):
         rect = surf.get_rect(**rect_kwargs)
         surface.blit(surf, rect)
         return rect
+    
+class KeybindOverlay(UIElement):
+    def __init__(self, key: int, key_text: str, text: str, on_trigger=None):
+        super().__init__()
+        self.key = key
+        self.key_text = key_text
+        self.text = text
+        self.on_trigger = on_trigger
+        
+        self.font = pygame.font.SysFont("p052", 25)
+        self.text_color = (232, 224, 176)
+
+    def handle_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key == self.key:
+            if self.on_trigger:
+                self.on_trigger()
+    
+    def draw(self, surface):
+        self._draw_text(
+            surface=surface,
+            font=self.font, 
+            text=f"[{self.key_text}] {self.text}",
+            color=self.text_color,
+            center=(surface.get_width() // 2, int((2/3) * surface.get_height()))
+        )
 
 class InputScreen(UIElement):
     def __init__(self, placeholder: str = "Enter text here...", question: str = "Input your answer...", key: str = None):
@@ -64,7 +89,7 @@ class InputScreen(UIElement):
 
         # Font
         self.font = pygame.font.SysFont("p052", 45, bold=True)
-        self.placeholder_font = pygame.font.SysFont("sans-sarif", 20)
+        self.placeholder_font = pygame.font.SysFont("sans-serif", 20)
         self.input_font = pygame.font.SysFont("tinos", 20)
         
         # Colors
@@ -115,6 +140,7 @@ class Dialogue(UIElement):
         self.character_name = character_name
         self.sound = pygame.mixer.Sound("assets/audio/cartoon-yap.mp3")
         
+        self.character_sprite = None
         if character_path:
             raw_image = pygame.image.load(character_path)
             target_height = 168
@@ -237,9 +263,51 @@ class UISequence:
     def update(self):
         if not self.is_finished:
             self.current_step.update()
-
-
-
+            
+class UIManager:
+    def __init__(self):
+        self.active_ui = None
+        self.on_close = None
+        self.overlay = None
+    
+    def set_overlay(self, overlay):
+        if not self.overlay:
+            self.overlay = overlay
+        
+    def clear_overlay(self):
+        self.overlay = None
+        
+    def set_ui(self, new_ui, callback=None):
+        if self.overlay:
+            self.clear_overlay()
+        
+        self.active_ui = new_ui
+        self.on_close = callback
+    
+    def handle_event(self, event):
+        if self.active_ui:
+            self.active_ui.handle_event(event)
+            
+            if self.active_ui.is_finished:
+                if self.on_close:
+                    self.on_close(self.active_ui)
+                
+                self.active_ui = None
+        elif self.overlay:
+            self.overlay.handle_event(event)
+    
+    def update(self):
+        if self.active_ui:
+            self.active_ui.update()
+        elif self.overlay:
+            self.overlay.update()
+        
+    def draw(self, surface):
+        if self.active_ui:
+            self.active_ui.draw(surface=surface)
+        elif self.overlay:
+            self.overlay.draw(surface=surface)
+        
 def create_welcome_sequence() -> UISequence:
     return UISequence(
         steps=[
@@ -250,7 +318,7 @@ def create_welcome_sequence() -> UISequence:
             ),
             Dialogue(
                 text="Hall of Stars is an interactive hall where you can explore all your stardance projects. Each door represents a project of yours on the biggest Hack Club YSWS event yet: Stardance.",
-                character_path="assets/logo/star_with_flag.png",
+                character_path="assets/characters/bean.png",
                 character_name="Starling"
             ),
             InputScreen(
@@ -265,3 +333,9 @@ def create_welcome_sequence() -> UISequence:
             ),
         ]
     )
+    
+def create_project_sequence(project_data: dict):
+    return UISequence(steps=[
+        Dialogue(text=f"Hey Hey Hey"),
+        Dialogue(text="He")
+    ])
