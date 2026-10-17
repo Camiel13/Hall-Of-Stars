@@ -134,7 +134,7 @@ class InputScreen(UIElement):
         surface.blit(text_surface, text_rect)
         
 class Dialogue(UIElement):
-    def __init__(self, text: str, character_path: pygame.Surface = None, character_name: str = None):
+    def __init__(self, text: str, italic: bool = False, character_path: pygame.Surface = None, character_name: str = None):
         super().__init__()
         self.text = text
         self.character_name = character_name
@@ -154,7 +154,10 @@ class Dialogue(UIElement):
         self.border_color = (248, 224, 96)
         
         # Fonts
-        self.font = pygame.font.SysFont("z003", 25)
+        if italic:
+            self.font = pygame.font.SysFont("z003", 25, italic=True)
+        else:
+            self.font = pygame.font.SysFont("z003", 25)
         self.name_font = pygame.font.SysFont("z003", 25, italic=True)
         
     def handle_event(self, event):
@@ -312,13 +315,18 @@ def create_welcome_sequence() -> UISequence:
     return UISequence(
         steps=[
             Dialogue(
-                text="Welcome to The Hall of Stars. You can move with WASD or Arrow Keys. Doors automatically bring you into the new room. You can interact with NPC's with 'E'. Use 'Space' or 'Enter' to navigate to the next page.",
-                character_path="assets/characters/standing_star.png",
+                text="Greetings earthling... I'm starling, I was forged from all the stardust gathered by the stardancers. I'll be your guide for this journey!",
+                character_path="assets/characters/dancing_star.png",
                 character_name="Starling"
             ),
             Dialogue(
-                text="Hall of Stars is an interactive hall where you can explore all your stardance projects. Each door represents a project of yours on the biggest Hack Club YSWS event yet: Stardance.",
-                character_path="assets/characters/bean.png",
+                text="I welcome you to The Hall of Stars. The Hall of Stars is an interactive hall where you can explore all your stardance projects in a visually immersive way. Each door represents a project of yours on the biggest Hack Club YSWS event yet: Stardance.",
+                character_path="assets/characters/standing_star.png",
+                character_name="Starling",
+            ),
+            Dialogue(
+                text="You can move with WASD or Arrow Keys. Doors automatically bring you into the connected room. You can interact with NPC's and objects by walking up to them and clicking the hinted keybind. Use 'Space' or 'Enter' to navigate to the next page.",
+                character_path="assets/characters/standing_star.png",
                 character_name="Starling"
             ),
             InputScreen(
@@ -336,6 +344,9 @@ def create_welcome_sequence() -> UISequence:
     
 def create_project_sequence(project_data: dict):
     return UISequence(steps=[
-        Dialogue(text=f"Hey Hey Hey"),
-        Dialogue(text="He")
+        Dialogue(
+            text=f'"Hey {project_data["owner_username"]}! This room is filled with all the hard work on {project_data["title"]}. Take a look around..."',
+            character_name="Mysterious Book",
+            italic=True
+        ),
     ])

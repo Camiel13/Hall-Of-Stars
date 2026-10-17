@@ -27,6 +27,8 @@ LAYERS = {
     "door": 3,
     "decoration": 4,
     "player": 5,
+    "npc": 5,
     "front_decoration": 6,
-    "front_wall": 7
+    "floating": 7,
+    "front_wall": 8,
 }
