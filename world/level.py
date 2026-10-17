@@ -1,10 +1,12 @@
 import math
 import pygame
-import settings
-from api import API
-from player import Player
-from camera import CameraGroup
-from utils import get_tile, tile_to_pixel
+import core.settings as settings
+from core.api import API
+from core.utils import get_tile, tile_to_pixel
+from entities.player import Player
+from entities.npc import NPC
+from world.camera import CameraGroup
+from world.tiles import Tile, Door, FloatingTile, InteractionTrigger
 from ui import KeybindOverlay, create_project_sequence
 
 class Room:
@@ -20,6 +22,7 @@ class Room:
         self.doors = pygame.sprite.Group()
         self.ticking_tiles = pygame.sprite.Group()
         self.obstacles = pygame.sprite.Group()
+        self.npcs = pygame.sprite.Group()
         self.interactables = []
         
         # Generate the room
@@ -119,18 +122,27 @@ class Room:
         for interactable in self.interactables:
             interactable.tick(player=player)
             
+    def tick_npcs(self):
+        for npc in self.npcs:
+            npc.tick()
+            
     def tick(self, player: pygame.Rect):
         self.tick_doors(player=player)
-        self.tick_ticking_tiles()
         self.tick_interactables(player=player)
+        self.tick_ticking_tiles()
+        self.tick_npcs()
     
     def load(self, camera: object, obstacles: object):
         camera.add(self.tiles)
+        camera.add(self.npcs)
         obstacles.add(self.obstacles)
+        obstacles.add(self.npcs)
         
     def unload(self, camera: object, obstacles: object):
         camera.remove(self.tiles)
+        camera.remove(self.npcs)
         obstacles.remove(self.obstacles)
+        obstacles.remove(self.npcs)
 
 class ProjectRoom(Room):
     def __init__(self, rect: pygame.Rect, project_data: dict, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None):
@@ -164,7 +176,7 @@ class ProjectRoom(Room):
         self.book = FloatingTile(
             pos=(pixel_x, pixel_y - 25),
             surface=self.textures["book"]["closed"],
-            layer=settings.LAYERS["front_decoration"],
+            layer=settings.LAYERS["floating"],
         )
         self.tiles.add(self.book)
         self.ticking_tiles.add(self.book)
@@ -180,6 +192,19 @@ class ProjectRoom(Room):
             textures={"active": self.textures["book"]["open"], "inactive": self.textures["book"]["closed"]}
         )
         self.interactables.append(altar_trigger)
+        
+        test_npc = NPC(
+            name="Starling",
+            dialogue=["Hey test!", "Whats up?"],
+            textures={
+              "active": pygame.image.load("assets/characters/looking_star.png"),
+              "inactive": pygame.image.load("assets/characters/standing_star.png")
+            },
+            obstacles=self.obstacles,
+            pos=(2, 2)
+        )
+        self.npcs.add(test_npc)
+        self.interactables.append(test_npc.trigger)
                         
 class Hallway(Room):
     def __init__(self, textures: dict, api: object, height):
@@ -270,49 +295,6 @@ class Hallway(Room):
                 )
                 self.tiles.add(carpet_tile)
 
-class Tile(pygame.sprite.Sprite):
-    def __init__(self, pos, surface, layer=settings.LAYERS["decoration"], hitbox=None):
-        super().__init__()
-        self.image = surface
-        self.rect = self.image.get_rect(topleft=pos)
-        self.hitbox = hitbox if hitbox is not None else self.rect
-        self._layer = layer
-
-class Door(Tile):
-    def __init__(self, pos, surface, target_room=None, target_pos=None, layer=settings.LAYERS["door"], hitbox=None):
-        hitbox = hitbox if hitbox is not None else pygame.Rect(pos[0], pos[1], 16, 18)
-        super().__init__(pos=pos, surface=surface, layer=layer, hitbox=hitbox)
-        self.target_room = target_room
-        self.target_pos = target_pos
-        
-class FloatingTile(Tile):
-    def __init__(self, pos, surface, layer=settings.LAYERS["door"], hitbox=None, amplitude=2, animation_speed=0.006):
-        super().__init__(pos=pos, surface=surface, layer=layer, hitbox=hitbox)
-        self.base_y = pos[1]
-        self.amplitude = amplitude
-        self.speed = animation_speed
-        
-    def tick(self):
-        offset = math.sin(pygame.time.get_ticks() * self.speed) * self.amplitude
-        self.rect.y = int(self.base_y + offset)
-        
-class InteractionTrigger:
-    def __init__(self, target, zone, keybind, keybind_text, text, textures: dict, on_trigger, layer=settings.LAYERS["decoration"]):
-        self.zone = zone
-        self.target = target
-        self.keybind = keybind
-        self.keybind_text = keybind_text
-        self.text = text
-        self.on_trigger = on_trigger
-        self.textures = textures or {}
-        self.active = False
-
-    def tick(self, player: pygame.Rect):
-        self.active = player.hitbox.colliderect(self.zone)
-        if self.textures:
-            self.target.image = self.textures["active" if self.active else "inactive"]
-
-        
 class Level:
     def __init__(self, display_surface, ui_manager):
         self.display_surface = display_surface

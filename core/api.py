@@ -14,12 +14,20 @@ class API:
         self.env_path = Path(".env")
         
     def get_projects(self) -> dict:
+        projects = [
+            {
+                "title": "Demo project",
+            },
+            {
+                "title": "Demo project",
+            },
+            {
+                "title": "Demo project"
+            }
+        ]
+        
         if not self.stardance_username:
-            return [
-                {"name": "Demo project"},
-                {"name": "Demo project"},
-                {"name": "Demo project"}
-            ]
+            return projects
         
         try:
             response = requests.get(
@@ -27,19 +35,15 @@ class API:
             )
             
             if response.status_code == 200:
-                return response.json().get("items", [])
+                projects = response.json().get("items", [])
+                return projects
             else:
-                print(f"Something went wrong while fetching your profile. Code {response.status_code}: {response.text}")
-                sys.exit()
+                print(f"Something went wrong while fetching your profile. Code {response.status_code}")
+                return projects
+
         except Exception as e:
             print(f"Could not reach API: {e}")
-            return [
-                {"name": "Offline project"},
-                {"name": "Offline project"},
-                {"name": "Offline project"},
-                {"name": "Offline project"},
-            ]
-        
+            return projects
             
     def set_username(self, username: str):
         self.stardance_username = username

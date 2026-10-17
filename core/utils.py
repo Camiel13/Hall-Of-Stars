@@ -1,5 +1,5 @@
 import pygame
-import settings
+import core.settings as settings
 
 def get_image(sheet, frame_index, frame_width=settings.CHARACTER_SIZE, frame_height=settings.CHARACTER_SIZE):
     x = frame_index * frame_width

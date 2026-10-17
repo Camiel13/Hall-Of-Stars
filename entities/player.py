@@ -1,6 +1,7 @@
+import math
 import pygame
-import settings
-from utils import get_image, get_animation, flip_animation, tile_to_pixel
+import core.settings as settings
+from core.utils import get_image, get_animation, flip_animation, tile_to_pixel
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, obstacles: object, pos: tuple = (0, 0)):

@@ -1,5 +1,5 @@
 import pygame
-import settings
+import core.settings as settings
 
 class CameraGroup(pygame.sprite.LayeredUpdates):
     def __init__(self, display_surface):
@@ -16,7 +16,7 @@ class CameraGroup(pygame.sprite.LayeredUpdates):
         self.offset.y = target.rect.centery - self.half_height
         
         # sorting for later: key=lambda x: x.rect.centery
-        for sprite in self.sprites():
+        for sprite in sorted(self.sprites(), key=lambda x: (x._layer, x.rect.bottom)):
             # Position = World Position - Camera Offset
             offset_pos = sprite.rect.topleft - self.offset
             self.display_surface.blit(sprite.image, offset_pos)
