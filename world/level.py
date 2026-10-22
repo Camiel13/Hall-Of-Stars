@@ -145,10 +145,13 @@ class Room:
         obstacles.remove(self.npcs)
 
 class ProjectRoom(Room):
-    def __init__(self, rect: pygame.Rect, project_data: dict, textures: dict, wall_locations: dict, spawn_point: tuple, has_exit: bool = None):
+    def __init__(self, rect: pygame.Rect, project_data: dict, textures: dict, api: object, wall_locations: dict, spawn_point: tuple, has_exit: bool = None):
         super().__init__(rect=rect, textures=textures, wall_locations=wall_locations, spawn_point=spawn_point, has_exit=has_exit)
         self.data = project_data
+        self.api = api
+        
         self.generate_altar()
+        self.generate_npc()
         
     def generate_altar(self):
         pixel_x = tile_to_pixel(self.rect.centerx)
@@ -192,16 +195,38 @@ class ProjectRoom(Room):
             textures={"active": self.textures["book"]["open"], "inactive": self.textures["book"]["closed"]}
         )
         self.interactables.append(altar_trigger)
+    
+    def generate_npc(self):
+        # Parse stats
+        stats = self.data["stats"]
         
+        project_hours = stats.get("total_hours", 0)
+        days = round(project_hours / 24, 1)
+        universe_percent = (days / 5_035_598_347_500) * 100
+        
+        total_projects = self.api.get_total_count(count_type="projects")
+        rank_hours = stats["rank_hours"]
+        beaten_percent_in_hours = (abs(total_projects - rank_hours) / total_projects) * 100
+        
+        project_stardust = stats.get("stardust_total", 0)
+        rank_stardust = stats["rank_stardust"]
+        
+        # Spawn the NPC
         test_npc = NPC(
             name="Starling",
-            dialogue=["Hey test!", "Whats up?"],
+            dialogue=[
+                f"Hey there {self.data["owner_username"]}! I've searched around the darkest corners of the universe to gather as much information about {self.data["title"]} as possible.",
+                f"Did you know you've spent {project_hours} hours on this project? That's {days} entire days of pure dedication. Sure, that's only {universe_percent:.13f}% of the universe's lifespan, but it shines just as bright as any star in the cosmos!",
+                f"In fact, you've put more time into this than {beaten_percent_in_hours:.1f}% of the {total_projects} projects out there on Stardance, earning rank #{rank_hours} on the leaderboards!",
+                f"As for the galactic treasure, you've gathered {project_stardust} stardust from forging this project! That puts you at rank #{rank_stardust} out of all {total_projects} projects on the leaderboards."
+            ],
             textures={
               "active": pygame.image.load("assets/characters/looking_star.png"),
               "inactive": pygame.image.load("assets/characters/standing_star.png")
             },
+            project_data=self.data,
             obstacles=self.obstacles,
-            pos=(2, 2)
+            pos=(4, 4)
         )
         self.npcs.add(test_npc)
         self.interactables.append(test_npc.trigger)
@@ -210,6 +235,7 @@ class Hallway(Room):
     def __init__(self, textures: dict, api: object, height):
         self.textures = textures
         self.projects = api.get_projects()
+        self.api = api
         
         self.doors = pygame.sprite.Group()
         self.door_spacing = settings.DOOR_SPACING
@@ -243,16 +269,17 @@ class Hallway(Room):
             pixel_x = tile_to_pixel(x_tile)
             
             project_room = ProjectRoom(
-                rect=pygame.Rect(0, 0, 11, 11),
+                rect=pygame.Rect(0, 0, 15, 11),
                 project_data=project,
                 textures=self.textures,
+                api=self.api,
                 wall_locations={
                     "left": True,
                     "right": True,
                     "top": True,
                     "bottom": True
                 },
-                spawn_point=(5, 10, "up"),
+                spawn_point=(7, 10, "up"),
                 has_exit=True,
             )
             
@@ -392,6 +419,5 @@ class Level:
             ui = interactable.on_trigger()
             self.ui_manager.set_ui(new_ui=ui)
 
-    
     def draw(self):
         self.camera_group.draw_sprites(target=self.player)

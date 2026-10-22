@@ -134,9 +134,10 @@ class InputScreen(UIElement):
         surface.blit(text_surface, text_rect)
         
 class Dialogue(UIElement):
-    def __init__(self, text: str, italic: bool = False, character_path: pygame.Surface = None, character_name: str = None):
+    def __init__(self, text: str, speech_audio: bool = True, italic: bool = False, character_path: pygame.Surface = None, character_name: str = None):
         super().__init__()
         self.text = text
+        self.sound_effects = speech_audio
         self.character_name = character_name
         self.sound = pygame.mixer.Sound("assets/audio/cartoon-yap.mp3")
         
@@ -219,8 +220,9 @@ class Dialogue(UIElement):
     def start(self):
         self.visible_characters = 0
         self.is_talking = True
-        self.sound.play(loops=-1)
-        self.lines = textwrap.wrap(self.text, width=48)
+        if self.sound_effects:
+            self.sound.play(loops=-1)
+        self.lines = textwrap.wrap(self.text, width=45)
     
     def stop(self):
         self.is_talking = False
@@ -345,8 +347,9 @@ def create_welcome_sequence() -> UISequence:
 def create_project_sequence(project_data: dict):
     return UISequence(steps=[
         Dialogue(
-            text=f'"Hey {project_data["owner_username"]}! This room is filled with all the hard work on {project_data["title"]}. Take a look around..."',
+            text=f'"This room is filled with all the hard work on {project_data["title"]}. Take a look around..."',
             character_name="Mysterious Book",
+            speech_audio=False,
             italic=True
         ),
     ])

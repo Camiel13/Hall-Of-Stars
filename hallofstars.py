@@ -19,6 +19,8 @@ class Game:
         self.clock = pygame.time.Clock()
         self.running = True
         
+        self.show_loading_screen()
+        
         # Create the world
         self.ui_manager = UIManager()
         self.level = Level(display_surface=self.display_surface, ui_manager=self.ui_manager)
@@ -60,6 +62,12 @@ class Game:
         pygame.quit()
         sys.exit()
         
+    def show_loading_screen(self):
+        loading_screen = pygame.image.load("assets/backgrounds/ship_bg.png").convert()
+        self.screen.blit(loading_screen, (0, 0))
+        pygame.display.flip()
+        pygame.event.pump()
+            
     def on_welcome_finish(self, ui_sequence):
         self.level.api.set_username(ui_sequence.results["username"])
         self.level.hallway.unload(camera=self.level.camera_group, obstacles=self.level.obstacles)
