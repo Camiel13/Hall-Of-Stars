@@ -22,3 +22,10 @@ def get_tile(tile_x, tile_y, tilesheet, tile_width=settings.TILE_SIZE, tile_heig
 
 def tile_to_pixel(tile):
     return tile * settings.TILE_SIZE
+
+def make_middle_tile(top, bottom, tile_size=settings.TILE_SIZE):
+    surf = pygame.Surface((tile_size, tile_size), pygame.SRCALPHA)
+    half = tile_size // 2
+    surf.blit(top, (0, 0), pygame.Rect(0, half, tile_size, half))
+    surf.blit(bottom, (0, half), pygame.Rect(0, 0, tile_size, half))
+    return surf

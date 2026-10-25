@@ -62,7 +62,7 @@ class KeybindOverlay(UIElement):
         self.text = text
         self.on_trigger = on_trigger
         
-        self.font = pygame.font.SysFont("p052", 25)
+        self.font = pygame.font.Font("assets/fonts/P052-Roman.otf", 25)
         self.text_color = (232, 224, 176)
 
     def handle_event(self, event):
@@ -88,9 +88,9 @@ class InputScreen(UIElement):
         self.question = question
 
         # Font
-        self.font = pygame.font.SysFont("p052", 45, bold=True)
-        self.placeholder_font = pygame.font.SysFont("sans-serif", 20)
-        self.input_font = pygame.font.SysFont("tinos", 20)
+        self.font = pygame.font.Font("assets/fonts/P052-Bold.otf", 45)
+        self.placeholder_font = pygame.font.Font("assets/fonts/Arimo-Regular.ttf", 20)
+        self.input_font = pygame.font.Font("assets/fonts/Tinos-Regular.ttf", 20)
         
         # Colors
         self.bg_color = (248, 248, 248)
@@ -125,9 +125,9 @@ class InputScreen(UIElement):
         
         # Render typed text or placeholder
         if self.value:
-            text_surface = self.placeholder_font.render(self.value, True, self.input_color)
+            text_surface = self.input_font.render(self.value, True, self.input_color)
         else:
-            text_surface = self.placeholder_font.render(self.placeholder, True, self.placeholder_color)
+            text_surface = self.input_font.render(self.placeholder, True, self.placeholder_color)
             
         # Center the text
         text_rect = text_surface.get_rect(midleft=(input_field.x + 12, input_field.centery))
@@ -155,11 +155,8 @@ class Dialogue(UIElement):
         self.border_color = (248, 224, 96)
         
         # Fonts
-        if italic:
-            self.font = pygame.font.SysFont("z003", 25, italic=True)
-        else:
-            self.font = pygame.font.SysFont("z003", 25)
-        self.name_font = pygame.font.SysFont("z003", 25, italic=True)
+        self.font = pygame.font.Font("assets/fonts/Z003-MediumItalic.otf", 25)
+        self.name_font = pygame.font.Font("assets/fonts/Z003-MediumItalic.otf", 25)
         
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and (event.key == pygame.K_SPACE or event.key == pygame.K_RETURN):
@@ -323,12 +320,12 @@ def create_welcome_sequence() -> UISequence:
             ),
             Dialogue(
                 text="I welcome you to The Hall of Stars. The Hall of Stars is an interactive hall where you can explore all your stardance projects in a visually immersive way. Each door represents a project of yours on the biggest Hack Club YSWS event yet: Stardance.",
-                character_path="assets/characters/standing_star.png",
+                character_path="assets/characters/dancing_star.png",
                 character_name="Starling",
             ),
             Dialogue(
                 text="You can move with WASD or Arrow Keys. Doors automatically bring you into the connected room. You can interact with NPC's and objects by walking up to them and clicking the hinted keybind. Use 'Space' or 'Enter' to navigate to the next page.",
-                character_path="assets/characters/standing_star.png",
+                character_path="assets/characters/dancing_star.png",
                 character_name="Starling"
             ),
             InputScreen(
@@ -347,7 +344,7 @@ def create_welcome_sequence() -> UISequence:
 def create_project_sequence(project_data: dict):
     return UISequence(steps=[
         Dialogue(
-            text=f'"This room is filled with all the hard work on {project_data["title"]}. Take a look around..."',
+            text=f'"This room is filled with all the hard work on {project_data["title"]}. Have a chat with the waddling Starling or take a look around..."',
             character_name="Mysterious Book",
             speech_audio=False,
             italic=True

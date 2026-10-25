@@ -21,13 +21,46 @@ class API:
     def get_projects(self) -> dict:
         self.projects = [
             {
+                "_id": "0",
                 "title": "Demo project",
+                "owner_username": "Stardancer",
+                "is_super_star": False,
+                "stats": {
+                    "total_hours": 10.0,
+                    "stardust_total": 100,
+                    "rank_hours": 500,
+                    "rank_stardust": 250,
+                    "likes": 5,
+                    "views": 42
+                }
             },
             {
+                "_id": "0",
                 "title": "Demo project",
+                "owner_username": "Stardancer",
+                "is_super_star": False,
+                "stats": {
+                    "total_hours": 22.0,
+                    "stardust_total": 333,
+                    "rank_hours": 779,
+                    "rank_stardust": 250,
+                    "likes": 5,
+                    "views": 42
+                }
             },
             {
-                "title": "Demo project"
+                "_id": "0",
+                "title": "Demo project",
+                "owner_username": "Stardancer",
+                "is_super_star": True,
+                "stats": {
+                    "total_hours": 39.0,
+                    "stardust_total": 577,
+                    "rank_hours": 901,
+                    "rank_stardust": 454,
+                    "likes": 5,
+                    "views": 42
+                }
             }
         ]
         

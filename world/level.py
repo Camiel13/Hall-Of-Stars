@@ -2,7 +2,7 @@ import math
 import pygame
 import core.settings as settings
 from core.api import API
-from core.utils import get_tile, tile_to_pixel
+from core.utils import get_tile, tile_to_pixel, make_middle_tile
 from entities.player import Player
 from entities.npc import NPC
 from world.camera import CameraGroup
@@ -107,6 +107,40 @@ class Room:
         self.tiles.add(self.exit_door)
         self.doors.add(self.exit_door)
         
+    def _add_carpet(self, carpet: pygame.Rect, type: str = "carpet"):
+        textures = self.textures[type]
+
+        for x in range(carpet.left, carpet.right):
+            if x == carpet.left:
+                horiz = "left"
+            elif x == carpet.right - 1:
+                horiz = "right"
+            else:
+                horiz = "middle"
+            
+            for y in range(carpet.top, carpet.bottom):
+                if y == carpet.top:
+                    vert = "top"
+                elif y == carpet.bottom - 1:
+                    vert = "bottom"
+                else:
+                    vert = "middle"
+                
+                carpet_tile = Tile(
+                    pos=(tile_to_pixel(x), tile_to_pixel(y)),
+                    surface=textures[f"{vert}-{horiz}"],
+                    layer=settings.LAYERS["floor"]
+                )
+                self.tiles.add(carpet_tile)
+                
+    def _add_tile(self, tile, is_tile: bool = True, is_obstacle: bool = True, is_npc: bool = False, is_door: bool = False, is_ticking: bool = False, is_interactable: bool = False):
+        if is_tile: self.tiles.add(tile)
+        if is_obstacle: self.obstacles.add(tile)
+        if is_npc: self.npcs.add(tile)
+        if is_door: self.doors.add(tile)
+        if is_ticking: self.ticking_tiles.add(tile)
+        if is_interactable: self.interactables.append(tile)
+        
     def tick_doors(self, player: pygame.Rect) -> object:
         for door in self.doors:
             if (player.direction == "up" or player.direction == "down") and player.hitbox.colliderect(door.hitbox):
@@ -149,9 +183,16 @@ class ProjectRoom(Room):
         super().__init__(rect=rect, textures=textures, wall_locations=wall_locations, spawn_point=spawn_point, has_exit=has_exit)
         self.data = project_data
         self.api = api
+        self.super_star = project_data.get("is_super_star", False)
         
         self.generate_altar()
         self.generate_npc()
+        
+        # Add details based on the amount of hours
+        if self.data["stats"]["total_hours"] >= 10.0: self.generate_tier_one()
+        if self.data["stats"]["total_hours"] >= 25.0: self.generate_tier_two()
+        if self.data["stats"]["total_hours"] >= 50.0: self.generate_tier_three()
+        if self.data["stats"]["total_hours"] >= 100.0: self.generate_tier_four()
         
     def generate_altar(self):
         pixel_x = tile_to_pixel(self.rect.centerx)
@@ -170,7 +211,7 @@ class ProjectRoom(Room):
             pos=(pixel_x, pixel_y - tile_to_pixel(1)),
             surface=self.textures["altar"]["top"],
             hitbox=pygame.Rect(pixel_x, pixel_y + 10, 16, 6),
-            layer=settings.LAYERS["front_decoration"]
+            layer=settings.LAYERS["decoration"]
         )
         self.tiles.add(top_altar)
         self.obstacles.add(top_altar)
@@ -195,6 +236,25 @@ class ProjectRoom(Room):
             textures={"active": self.textures["book"]["open"], "inactive": self.textures["book"]["closed"]}
         )
         self.interactables.append(altar_trigger)
+        
+        if self.super_star:
+            top_flag_y = pixel_y - tile_to_pixel(1) + 4
+            bottom_flag_y = top_flag_y + tile_to_pixel(1)
+            x = pixel_x
+
+            flag_bottom = Tile(
+                pos=(x, bottom_flag_y),
+                surface=self.textures["flag"]["bottom"],
+            )
+            flag_top = Tile(
+                pos=(x, top_flag_y),
+                surface=self.textures["flag"]["top"],
+            )
+            
+            flag_top.depth = bottom_altar.rect.bottom + 0.1
+            flag_bottom.depth = bottom_altar.rect.bottom + 0.2
+            self._add_tile(flag_bottom, is_obstacle=False)
+            self._add_tile(flag_top, is_obstacle=False)
     
     def generate_npc(self):
         # Parse stats
@@ -205,11 +265,11 @@ class ProjectRoom(Room):
         universe_percent = (days / 5_035_598_347_500) * 100
         
         total_projects = self.api.get_total_count(count_type="projects")
-        rank_hours = stats["rank_hours"]
+        rank_hours = stats.get("rank_hours") or total_projects
         beaten_percent_in_hours = (abs(total_projects - rank_hours) / total_projects) * 100
         
         project_stardust = stats.get("stardust_total", 0)
-        rank_stardust = stats["rank_stardust"]
+        rank_stardust = stats.get("rank_stardust") or total_projects
         
         # Spawn the NPC
         test_npc = NPC(
@@ -217,20 +277,221 @@ class ProjectRoom(Room):
             dialogue=[
                 f"Hey there {self.data["owner_username"]}! I've searched around the darkest corners of the universe to gather as much information about {self.data["title"]} as possible.",
                 f"Did you know you've spent {project_hours} hours on this project? That's {days} entire days of pure dedication. Sure, that's only {universe_percent:.13f}% of the universe's lifespan, but it shines just as bright as any star in the cosmos!",
-                f"In fact, you've put more time into this than {beaten_percent_in_hours:.1f}% of the {total_projects} projects out there on Stardance, earning rank #{rank_hours} on the leaderboards!",
+                f"In fact, you've put more time into this than {beaten_percent_in_hours:.2f}% of the {total_projects} projects out there on Stardance, earning rank #{rank_hours} on the leaderboards!",
                 f"As for the galactic treasure, you've gathered {project_stardust} stardust from forging this project! That puts you at rank #{rank_stardust} out of all {total_projects} projects on the leaderboards."
             ],
             textures={
-              "active": pygame.image.load("assets/characters/looking_star.png"),
-              "inactive": pygame.image.load("assets/characters/standing_star.png")
+              "active": pygame.image.load("assets/characters/looking_star.png" if not self.super_star else "assets/characters/looking_purple_star.png"),
+              "inactive": pygame.image.load("assets/characters/standing_star.png" if not self.super_star else "assets/characters/standing_purple_star.png")
             },
+            character_path="assets/characters/bean.png" if not self.super_star else "assets/characters/buku.png",
             project_data=self.data,
             obstacles=self.obstacles,
-            pos=(4, 4)
+            pos=(self.rect.centerx - 3, self.rect.centery)
         )
         self.npcs.add(test_npc)
         self.interactables.append(test_npc.trigger)
-                        
+        
+    def generate_tier_one(self):
+        # Add bed
+        bed_x = tile_to_pixel(self.rect.right - 1) - 7
+        bottom_bed_y = tile_to_pixel(self.rect.bottom - 1) - 2
+        top_bed_y = bottom_bed_y + tile_to_pixel(-1)
+        bed_bottom = Tile(
+            pos=(bed_x, bottom_bed_y),
+            surface=self.textures["bed"]["bottom"],
+        )
+        bed_top = Tile(
+            pos=(bed_x, top_bed_y),
+            surface=self.textures["bed"]["top"],
+            hitbox=pygame.Rect(bed_x, top_bed_y + 6, 16, 10),
+        )
+        self._add_tile(bed_bottom)
+        self._add_tile(bed_top)
+        
+        # Add bookcase above the bed
+        bookcase_x = tile_to_pixel(self.rect.right - 1) - 5
+        bottom_bookcase_y = tile_to_pixel(self.rect.bottom - 3) - 2
+        top_bookcase_y = tile_to_pixel(self.rect.bottom - 4) - 2
+        bookcase_top = Tile(
+            pos=(bookcase_x, top_bookcase_y),
+            surface=self.textures["side-bookcase"]["top"],
+            hitbox=pygame.Rect(bookcase_x + 4, top_bookcase_y + 8, 12, 8)
+        )
+        bookcase_bottom = Tile(
+            pos=(bookcase_x, bottom_bookcase_y),
+            surface=self.textures["side-bookcase"]["bottom"],
+            hitbox=pygame.Rect(bookcase_x + 4, bottom_bookcase_y, 12, 15)
+        )
+        self._add_tile(bookcase_top)
+        self._add_tile(bookcase_bottom)
+        
+    def generate_tier_two(self):
+        # Add a carpet beneath the altar
+        carpet = pygame.Rect(
+            self.rect.centerx - 1, 
+            self.rect.centery - 1,
+            3,
+            3
+        )
+        self._add_carpet(carpet=carpet, type="small_carpet")
+        
+        # Add a statue
+        for statue_x in (tile_to_pixel(self.rect.centerx + 1), tile_to_pixel(self.rect.centerx - 1)):
+            bottom_statue_y = tile_to_pixel(self.rect.centery - 2) - 3
+            top_statue_y = bottom_statue_y - 16
+            statue_bottom = Tile(
+                pos=(statue_x, bottom_statue_y),
+                surface=self.textures["statue"]["bottom"],
+                hitbox=pygame.Rect(statue_x + 2, bottom_statue_y + 1, 12, 15)
+            )
+            statue_top = Tile(
+                pos=(statue_x, top_statue_y),
+                surface=self.textures["statue"]["top"],
+                hitbox=pygame.Rect(statue_x + 2, top_statue_y, 12, 0),
+                layer=settings.LAYERS["front_decoration"]
+            )
+            self._add_tile(statue_bottom)
+            self._add_tile(statue_top)
+            
+    def generate_tier_three(self):
+        # Add a table with an axe on it
+        left_x = tile_to_pixel(self.rect.left + 2)
+        right_x = tile_to_pixel(self.rect.left + 3)
+        top_y = tile_to_pixel(self.rect.bottom - 4)
+        bottom_y = tile_to_pixel(self.rect.bottom - 3)
+        
+        for x, horiz in ((left_x, "left"), (right_x, "right")):            
+            for y, vert in ((top_y, "top"), (bottom_y, "bottom")):
+                hitbox_width = 16 if horiz == "left" else 15
+                hitbox_height = 12 if vert == "bottom" else 6
+                hitbox_top = y if vert == "bottom" else y + 10
+                
+                table_tile = Tile(
+                    pos=(x, y),
+                    surface=self.textures["table"][f"{horiz}-{vert}"],
+                    hitbox=pygame.Rect(x, hitbox_top, hitbox_width, hitbox_height),
+                    layer=settings.LAYERS["back_wall"]
+                )
+                self._add_tile(table_tile)
+                
+        # Add an axe on the table
+        axe = Tile(
+            pos=(left_x + 8, top_y + 8),
+            surface=self.textures["axe"],
+            layer=settings.LAYERS["decoration"],
+            hitbox=pygame.Rect(left_x + 8, top_y + 12, 16, 12)
+        )
+        self._add_tile(axe)
+        
+        # Add a bottle next to the table
+        bottle = Tile(
+            pos=(tile_to_pixel(self.rect.left) + 3, top_y),
+            surface=self.textures["rounded_bottle"],
+            hitbox=pygame.Rect(tile_to_pixel(self.rect.left) + 7, top_y + 3, 9, 13)
+        )
+        self._add_tile(bottle)
+        
+    def generate_tier_four(self):
+        # Add a better carpet
+        carpet = pygame.Rect(
+            self.rect.centerx - 1, 
+            self.rect.centery - 1,
+            3,
+            3
+        )
+        self._add_carpet(carpet=carpet, type="large_carpet")
+        
+        # Add a bar
+        bar = pygame.Rect(self.rect.centerx - 2, self.rect.top + 1, 5, 3)
+        for x in range(bar.left, bar.right):
+            for y in range(bar.top, bar.bottom):
+                if bar.left < x < bar.right - 1 and y < bar.bottom - 1:
+                    continue
+                
+                if x == bar.left:
+                    horiz = "left"
+                elif x == bar.right - 1:
+                    horiz = "right"
+                else:
+                    horiz = "middle"
+                    
+                if y == bar.top:
+                    vert = "top"
+                elif y == bar.bottom - 1:
+                    vert = "bottom"
+                else:
+                    vert = "side"
+
+
+                hitbox_width = 16 if horiz == "middle" else 10
+                hitbox_left = tile_to_pixel(x) + 6 if horiz == "left" else tile_to_pixel(x)
+
+                if vert == "top":
+                    hitbox_height = 4
+                    hitbox_top = tile_to_pixel(y) + 12
+                elif vert == "bottom":
+                    hitbox_height = 12
+                    hitbox_top = tile_to_pixel(y) + 3
+                else:
+                    hitbox_height = 16
+                    hitbox_top = tile_to_pixel(y)
+
+                bar_tile = Tile(
+                    pos=(tile_to_pixel(x), tile_to_pixel(y)),
+                    surface=self.textures["bar"][f"{vert}-{horiz}"],
+                    hitbox=pygame.Rect(hitbox_left, hitbox_top, hitbox_width, hitbox_height)
+                )
+                self._add_tile(bar_tile)
+                
+            # Add a sword on the bar
+            left_sword_x = tile_to_pixel(self.rect.centerx)
+            right_sword_x = left_sword_x + tile_to_pixel(1)
+            sword_y = tile_to_pixel(bar.bottom - 1) - 5
+            
+            left_sword = Tile(
+                pos=(left_sword_x, sword_y),
+                surface=self.textures["sword"]["left"],
+                layer=settings.LAYERS["decoration"]
+            )
+            right_sword = Tile(
+                pos=(right_sword_x, sword_y),
+                surface=self.textures["sword"]["right"],
+                layer=settings.LAYERS["decoration"]
+            )
+            
+            right_sword.depth = tile_to_pixel(bar.bottom) + 0.1
+            left_sword.depth = tile_to_pixel(bar.bottom) + 0.1
+            self._add_tile(left_sword, is_obstacle=False)
+            self._add_tile(right_sword, is_obstacle=False)
+            
+            # Add candles
+            candle_y = tile_to_pixel(bar.bottom - 2)
+            for x in (tile_to_pixel(bar.left) + 2, tile_to_pixel(bar.right - 1) - 3):
+                candle = Tile(
+                    pos=(x, candle_y),
+                    surface=self.textures["candle"]
+                )
+                self._add_tile(candle, is_obstacle=False)
+                
+            # Add some flower pots next to the entrance
+            bottom_flowerpot_y = tile_to_pixel(self.rect.bottom - 1) + 5
+            top_flowerpot_y = bottom_flowerpot_y - tile_to_pixel(1)
+            for x in (tile_to_pixel(self.rect.centerx - 1), tile_to_pixel(self.rect.centerx + 1)):
+                flowerpot_bottom = Tile(
+                    pos=(x, bottom_flowerpot_y),
+                    surface=self.textures["flower_pot"]["bottom"],
+                    hitbox=pygame.Rect(x + 2, bottom_flowerpot_y + 3, 12, 13)
+                )
+                flowerpot_top = Tile(
+                    pos=(x, top_flowerpot_y),
+                    surface=self.textures["flower_pot"]["top"]
+                )
+                self._add_tile(flowerpot_bottom)
+                flowerpot_top.depth = flowerpot_bottom.rect.bottom
+                self._add_tile(flowerpot_top, is_obstacle=False)
+            
+                                        
 class Hallway(Room):
     def __init__(self, textures: dict, api: object, height):
         self.textures = textures
@@ -268,8 +529,12 @@ class Hallway(Room):
             x_tile = self.door_margin + (door_index * (1 + self.door_spacing))
             pixel_x = tile_to_pixel(x_tile)
             
+            hours = project["stats"]["total_hours"]
+            project_room_width = int(9 + 2.4 * hours ** 0.3) // 2 * 2 + 1
+            project_room_height = int(7 + 2.4 * hours ** 0.3) // 2 * 2 + 1
+            
             project_room = ProjectRoom(
-                rect=pygame.Rect(0, 0, 15, 11),
+                rect=pygame.Rect(0, 0, project_room_width, project_room_height),
                 project_data=project,
                 textures=self.textures,
                 api=self.api,
@@ -279,7 +544,7 @@ class Hallway(Room):
                     "top": True,
                     "bottom": True
                 },
-                spawn_point=(7, 10, "up"),
+                spawn_point=(project_room_width // 2, project_room_height - 1, "up"),
                 has_exit=True,
             )
             
@@ -304,23 +569,7 @@ class Hallway(Room):
             2
         )
 
-        for x in range(carpet.left, carpet.right):
-            if x == carpet.left:
-                horiz = "left"
-            elif x == carpet.right - 1:
-                horiz = "right"
-            else:
-                horiz = "middle"
-            
-            for y in range(carpet.top, carpet.bottom):
-                vert = "top" if y == carpet.top else "bottom"
-                
-                carpet_tile = Tile(
-                    pos=(tile_to_pixel(x), tile_to_pixel(y)),
-                    surface=self.textures["carpet"][f"{vert}-{horiz}"],
-                    layer=settings.LAYERS["floor"]
-                )
-                self.tiles.add(carpet_tile)
+        self._add_carpet(carpet=carpet)
 
 class Level:
     def __init__(self, display_surface, ui_manager):
@@ -328,7 +577,6 @@ class Level:
         self.ui_manager = ui_manager
         self.api = API()
         self.obstacles = pygame.sprite.Group()
-        self.camera_group = CameraGroup(display_surface=self.display_surface)
         self.player = Player(obstacles=self.obstacles)
         
         # Make the camera and add the player to it
@@ -345,11 +593,36 @@ class Level:
             "door": get_tile(tile_x=1, tile_y=5, tilesheet=self.tilesheet),
             "carpet": {
                 "top-left": get_tile(tile_x=3, tile_y=0, tilesheet=self.tilesheet),
-                "bottom-left": get_tile(tile_x=3, tile_y=1, tilesheet=self.tilesheet),
                 "top-middle": get_tile(tile_x=4, tile_y=0, tilesheet=self.tilesheet),
-                "bottom-middle": get_tile(tile_x=4, tile_y=1, tilesheet=self.tilesheet),
                 "top-right": get_tile(tile_x=5, tile_y=0, tilesheet=self.tilesheet),
+                "middle-left": make_middle_tile(get_tile(tile_x=3, tile_y=0, tilesheet=self.tilesheet), get_tile(tile_x=3, tile_y=1, tilesheet=self.tilesheet)),
+                "middle-middle": make_middle_tile(get_tile(tile_x=4, tile_y=0, tilesheet=self.tilesheet), get_tile(tile_x=4, tile_y=1, tilesheet=self.tilesheet)),
+                "middle-right": make_middle_tile(get_tile(tile_x=5, tile_y=0, tilesheet=self.tilesheet), get_tile(tile_x=5, tile_y=1, tilesheet=self.tilesheet)),
+                "bottom-left": get_tile(tile_x=3, tile_y=1, tilesheet=self.tilesheet),
+                "bottom-middle": get_tile(tile_x=4, tile_y=1, tilesheet=self.tilesheet),
                 "bottom-right": get_tile(tile_x=5, tile_y=1, tilesheet=self.tilesheet),
+            },
+            "small_carpet": {
+                "top-left": get_tile(tile_x=0, tile_y=0, tilesheet=self.tilesheet),
+                "top-middle": get_tile(tile_x=1, tile_y=0, tilesheet=self.tilesheet),
+                "top-right": get_tile(tile_x=2, tile_y=0, tilesheet=self.tilesheet),
+                "middle-left": make_middle_tile(get_tile(tile_x=0, tile_y=0, tilesheet=self.tilesheet), get_tile(tile_x=0, tile_y=1, tilesheet=self.tilesheet)),
+                "middle-middle": make_middle_tile(get_tile(tile_x=1, tile_y=0, tilesheet=self.tilesheet), get_tile(tile_x=1, tile_y=1, tilesheet=self.tilesheet)),
+                "middle-right": make_middle_tile(get_tile(tile_x=2, tile_y=0, tilesheet=self.tilesheet), get_tile(tile_x=2, tile_y=1, tilesheet=self.tilesheet)),
+                "bottom-left": get_tile(tile_x=0, tile_y=1, tilesheet=self.tilesheet),
+                "bottom-middle": get_tile(tile_x=1, tile_y=1, tilesheet=self.tilesheet),
+                "bottom-right": get_tile(tile_x=2, tile_y=1, tilesheet=self.tilesheet),
+            },
+            "large_carpet": {
+                "top-left": get_tile(tile_x=7, tile_y=6, tilesheet=self.expanded_tilesheet),
+                "top-middle": get_tile(tile_x=8, tile_y=6, tilesheet=self.expanded_tilesheet),
+                "top-right": get_tile(tile_x=10, tile_y=6, tilesheet=self.expanded_tilesheet),
+                "middle-left": get_tile(tile_x=7, tile_y=7, tilesheet=self.expanded_tilesheet),
+                "middle-middle": get_tile(tile_x=8, tile_y=7, tilesheet=self.expanded_tilesheet),
+                "middle-right": get_tile(tile_x=10, tile_y=7, tilesheet=self.expanded_tilesheet),
+                "bottom-left": get_tile(tile_x=7, tile_y=9, tilesheet=self.expanded_tilesheet),
+                "bottom-middle": get_tile(tile_x=8, tile_y=9, tilesheet=self.expanded_tilesheet),
+                "bottom-right": get_tile(tile_x=10, tile_y=9, tilesheet=self.expanded_tilesheet),
             },
             "altar": {
                 "top": get_tile(tile_x=4, tile_y=6, tilesheet=self.expanded_tilesheet),
@@ -359,7 +632,55 @@ class Level:
                 "open": get_tile(tile_x=3, tile_y=8, tilesheet=self.expanded_tilesheet),
                 "upside": get_tile(tile_x=1, tile_y=8, tilesheet=self.expanded_tilesheet),
                 "closed": get_tile(tile_x=3, tile_y=11, tilesheet=self.expanded_tilesheet)
-            }
+            },
+            "bed": {
+                "top": get_tile(tile_x=4, tile_y=4, tilesheet=self.tilesheet),
+                "bottom": get_tile(tile_x=4, tile_y=5, tilesheet=self.tilesheet)
+            },
+            "statue": {
+                "top": get_tile(tile_x=3, tile_y=4, tilesheet=self.tilesheet),
+                "bottom": get_tile(tile_x=3, tile_y=5, tilesheet=self.tilesheet)
+            },
+            "axe": get_tile(tile_x=0, tile_y=7, tilesheet=self.tilesheet),
+            "bookcase": {
+                "top-left": get_tile(tile_x=3, tile_y=6, tilesheet=self.tilesheet),
+                "bottom-left": get_tile(tile_x=3, tile_y=7, tilesheet=self.tilesheet),
+                "top-right": get_tile(tile_x=4, tile_y=6, tilesheet=self.tilesheet),
+                "bottom-right": get_tile(tile_x=4, tile_y=7, tilesheet=self.tilesheet),
+            },
+            "side-bookcase": {
+                "top": get_tile(tile_x=6, tile_y=10, tilesheet=self.tilesheet),
+                "bottom": get_tile(tile_x=6, tile_y=11, tilesheet=self.tilesheet)
+            },
+            "sword": {
+                "left": get_tile(tile_x=1, tile_y=7, tilesheet=self.tilesheet),
+                "right": get_tile(tile_x=2, tile_y=7, tilesheet=self.tilesheet),
+            },
+            "table": {
+                "left-top": get_tile(tile_x=5, tile_y=7, tilesheet=self.tilesheet),
+                "left-bottom": get_tile(tile_x=5, tile_y=8, tilesheet=self.tilesheet),
+                "right-top": get_tile(tile_x=6, tile_y=7, tilesheet=self.tilesheet),
+                "right-bottom": get_tile(tile_x=6, tile_y=8, tilesheet=self.tilesheet)
+            },
+            "bar": {
+                "top-left": get_tile(tile_x=0, tile_y=8, tilesheet=self.tilesheet),
+                "top-right": get_tile(tile_x=4, tile_y=8, tilesheet=self.tilesheet),
+                "side-left": get_tile(tile_x=0, tile_y=9, tilesheet=self.tilesheet),
+                "side-right": get_tile(tile_x=4, tile_y=9, tilesheet=self.tilesheet),
+                "bottom-left": get_tile(tile_x=0, tile_y=11, tilesheet=self.tilesheet),
+                "bottom-middle": get_tile(tile_x=2, tile_y=11, tilesheet=self.tilesheet),
+                "bottom-right": get_tile(tile_x=4, tile_y=11, tilesheet=self.tilesheet),
+            },
+            "candle": get_tile(tile_x=2, tile_y=11, tilesheet=self.expanded_tilesheet),
+            "rounded_bottle": get_tile(tile_x=2, tile_y=8, tilesheet=self.expanded_tilesheet),
+            "flower_pot": {
+                "top": get_tile(tile_x=8, tile_y=10, tilesheet=self.expanded_tilesheet),
+                "bottom": get_tile(tile_x=8, tile_y=11, tilesheet=self.expanded_tilesheet),
+            },
+            "flag": {
+                "top": get_tile(tile_x=9, tile_y=2, tilesheet=self.expanded_tilesheet),
+                "bottom": get_tile(tile_x=9, tile_y=3, tilesheet=self.expanded_tilesheet),
+            },
         }
         
         self.generate_hallway()

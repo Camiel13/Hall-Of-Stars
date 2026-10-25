@@ -3,7 +3,7 @@ import pygame
 import core.settings as settings
 
 class Tile(pygame.sprite.Sprite):
-    def __init__(self, pos, surface, layer=settings.LAYERS["decoration"], hitbox=None):
+    def __init__(self, pos, surface, layer=settings.LAYERS["decoration"], hitbox: pygame.Rect = None):
         super().__init__()
         self.image = surface
         self.rect = self.image.get_rect(topleft=pos)
