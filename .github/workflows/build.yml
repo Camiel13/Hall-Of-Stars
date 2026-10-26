@@ -1,0 +1,94 @@
+name: Build Executables
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publish as a GitHub Release draft?'
+        type: boolean
+        default: false
+      tag_name:
+        description: 'Release tag (e.g. v1.0.0)'
+        type: string
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os-name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            os-name: Linux
+            artifact-name: HallOfStars-Linux-x86_64
+          - os: windows-latest
+            os-name: Windows
+            artifact-name: HallOfStars-Windows-x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable with PyInstaller (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          pyinstaller --noconfirm --onedir --windowed             --name "HallOfStars"             --add-data "assets:assets"             --add-data "credits.txt:."             --add-data ".env.example:."             main.py
+          cd dist
+          zip -r ../${{ matrix.artifact-name }}.zip HallOfStars/
+
+      - name: Build executable with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller --noconfirm --onedir --windowed `
+            --name "HallOfStars" `
+            --add-data "assets;assets" `
+            --add-data "credits.txt;." `
+            --add-data ".env.example;." `
+            main.py
+          cd dist
+          Compress-Archive -Path HallOfStars -DestinationPath ../${{ matrix.artifact-name }}.zip
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-name }}.zip
+          retention-days: 14
+
+  release:
+    name: Create GitHub Release Draft
+    needs: build
+    if: inputs.create_release == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag_name }}
+          name: Hall of Stars ${{ inputs.tag_name }}
+          draft: true
+          prerelease: false
+          files: |
+            artifacts/**/*.zip

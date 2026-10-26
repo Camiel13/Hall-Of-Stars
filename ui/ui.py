@@ -349,4 +349,22 @@ def create_project_sequence(project_data: dict):
             speech_audio=False,
             italic=True
         ),
+        Dialogue(
+            text=f'"You\'ve spent {project_data["stats"].get("total_hours", 0)} hours on this project, of which {project_data["stats"].get("shipped_hours", 0)} are shipped hours."',
+            character_name="Mysterious Book",
+            speech_audio=False,
+            italic=True
+        ),
+        Dialogue(
+            text=f'"This project earned you {project_data["stats"].get("stardust_total", 0)} stardust so far. With an average multiplier of {project_data["stats"].get("avg_multiplier", 0)}."',
+            character_name="Mysterious Book",
+            speech_audio=False,
+            italic=True
+        ),
+        Dialogue(
+            text=f'"During the process of making this project you managed to get {project_data["stats"].get("likes", 0)} likes and {project_data["stats"].get("views", 0)} views on your devlogs. Your project currently has {project_data["stats"].get("followers", 0)} followers."',
+            character_name="Mysterious Book",
+            speech_audio=False,
+            italic=True
+        ),
     ])
