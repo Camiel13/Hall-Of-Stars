@@ -28,6 +28,19 @@ class FloatingTile(Tile):
         offset = math.sin(pygame.time.get_ticks() * self.speed) * self.amplitude
         self.rect.y = int(self.base_y + offset)
 
+class AnimatedTile(Tile):
+    def __init__(self, pos, surface, frames: list, animation_speed: float = 0.1, layer=settings.LAYERS["decoration"], hitbox=None):
+        super().__init__(pos=pos, surface=surface, layer=layer, hitbox=hitbox)
+        self.frames = frames
+        self.animation_speed = animation_speed
+        self.frame_index = 0.0
+
+    def tick(self):
+        self.frame_index += self.animation_speed
+        if self.frame_index >= len(self.frames):
+            self.frame_index = 0.0
+        self.image = self.frames[int(self.frame_index)]
+
 class InteractionTrigger:
     def __init__(self, target, zone, keybind, keybind_text, text, textures: dict = None, on_trigger=None, layer=settings.LAYERS["decoration"]):
         self.zone = zone

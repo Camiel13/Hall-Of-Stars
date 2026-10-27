@@ -6,7 +6,7 @@ from core.utils import get_tile, tile_to_pixel, make_middle_tile
 from entities.player import Player
 from entities.npc import NPC
 from world.camera import CameraGroup
-from world.tiles import Tile, Door, FloatingTile, InteractionTrigger
+from world.tiles import Tile, Door, FloatingTile, InteractionTrigger, AnimatedTile
 from ui import KeybindOverlay, create_project_sequence
 
 class Room:
@@ -518,6 +518,7 @@ class Hallway(Room):
         )
         self.generate_doors()
         self.generate_carpet()
+        self.generate_torches()
         
     def calculate_width(self):
         doors = len(self.projects)
@@ -570,6 +571,18 @@ class Hallway(Room):
         )
 
         self._add_carpet(carpet=carpet)
+
+    def generate_torches(self):
+        for x, side in ((self.rect.left, "left"), (self.rect.right - 1, "right")):
+            for y in (self.rect.top + 2, self.rect.bottom - 2):
+                torch = AnimatedTile(
+                    pos=(tile_to_pixel(x), tile_to_pixel(y)),
+                    surface=self.textures["torch"][side]["frame1"],
+                    frames=[self.textures["torch"][side]["frame1"], self.textures["torch"][side]["frame2"]],
+                    layer=settings.LAYERS["front_wall"]
+                )
+                self.tiles.add(torch)
+                self.ticking_tiles.add(torch)
 
 class Level:
     def __init__(self, display_surface, ui_manager):
@@ -681,6 +694,20 @@ class Level:
                 "top": get_tile(tile_x=9, tile_y=2, tilesheet=self.expanded_tilesheet),
                 "bottom": get_tile(tile_x=9, tile_y=3, tilesheet=self.expanded_tilesheet),
             },
+            "torch": {
+                "right": {
+                    "frame1": get_tile(tile_x=6, tile_y=1, tilesheet=self.tilesheet),
+                    "frame2": get_tile(tile_x=6, tile_y=2, tilesheet=self.tilesheet)
+                },
+                "left": {
+                    "frame1": get_tile(tile_x=6, tile_y=3, tilesheet=self.tilesheet),
+                    "frame2": get_tile(tile_x=6, tile_y=4, tilesheet=self.tilesheet)
+                },
+                "front": {
+                    "frame1": get_tile(tile_x=6, tile_y=5, tilesheet=self.tilesheet),
+                    "frame2": get_tile(tile_x=6, tile_y=6, tilesheet=self.tilesheet)
+                }
+            }
         }
         
         self.generate_hallway()

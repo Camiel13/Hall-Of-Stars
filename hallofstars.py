@@ -2,7 +2,7 @@ import sys
 import pygame
 import core.settings as settings
 from world.level import Level
-from ui import UISequence, create_welcome_sequence, UIManager
+from ui import create_welcome_sequence, UIManager
 
 class Game:
     def __init__(self):
