@@ -7,11 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 class API:
     def __init__(self):
-        load_dotenv()
+        if getattr(sys, "frozen", False):
+            self.env_path = Path(sys.executable).parent / ".env"
+        else:
+            self.env_path = Path(".env")
+        load_dotenv(dotenv_path=self.env_path)
         
         self.api_key = os.getenv("API_KEY")
         self.stardance_username = os.getenv("STARDANCE_USERNAME")
-        self.env_path = Path(".env")
         
         self.url = "https://api.stardancestats.xyz/v1"
         self.session = requests.Session()
