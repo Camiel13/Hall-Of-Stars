@@ -1,9 +1,10 @@
 import os
 import sys
 
-# Ensure working directory is set to the application directory when packaged
+# Ensure working directory points to bundled data (_MEIPASS / _internal) when packaged
 if getattr(sys, "frozen", False):
-    os.chdir(os.path.dirname(os.path.abspath(sys.executable)))
+    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(sys.executable)))
+    os.chdir(base_dir)
 
 from hallofstars import Game
 
